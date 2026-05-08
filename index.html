@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務ナビ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#f5f5f3;color:#1a1a18;padding:20px;min-height:100vh}
+.container{max-width:900px;margin:0 auto;background:#fff;border-radius:16px;padding:24px;border:0.5px solid #e0ddd5}
+.header{padding:0 0 14px;border-bottom:0.5px solid #e0ddd5;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.header-left h1{font-size:20px;font-weight:500;color:#1a1a18}
+.header-left p{font-size:12px;color:#73726c;margin-top:3px}
+.edit-toggle{display:inline-block;padding:4px 10px;font-size:11px;border:0.5px solid #c8c6be;border-radius:6px;background:transparent;color:#9c9a92;cursor:pointer;transition:all .15s}
+.edit-toggle:hover{color:#73726c;border-color:#888780}
+.edit-toggle.active{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.edit-banner{background:#E1F5EE;border:0.5px solid #9FE1CB;border-radius:8px;padding:8px 14px;font-size:12px;color:#085041;margin-bottom:14px;display:none}
+.edit-banner.show{display:block}
+.search-bar{margin-bottom:16px;position:relative}
+.search-bar .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#9c9a92;pointer-events:none;z-index:1}
+.search-bar input{width:100%;padding:11px 14px 11px 42px;font-size:14px;border:1px solid #c8c6be;border-radius:10px;background:#f9f9f8;color:#1a1a18;outline:none;transition:all .2s}
+.search-bar input:focus{border-color:#534AB7;background:#fff;box-shadow:0 0 0 3px rgba(83,74,183,0.1)}
+.search-bar input::placeholder{color:#9c9a92}
+/* 検索結果2ジャンル */
+.search-results{border:0.5px solid #c8c6be;border-radius:12px;margin-bottom:16px;overflow:hidden;display:none}
+.search-results.show{display:block}
+.sr-section{padding:12px 16px}
+.sr-section+.sr-section{border-top:0.5px solid #e0ddd5}
+.sr-header{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.sr-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:8px}
+.sr-badge.app{background:#E1F5EE;color:#0F6E56}
+.sr-badge.drive{background:#E6F1FB;color:#185FA5}
+.sr-title{font-size:12px;font-weight:500;color:#1a1a18}
+.sr-count{font-size:10px;color:#9c9a92;margin-left:auto}
+.sr-item{display:flex;align-items:center;gap:6px;padding:5px 4px;border-radius:6px;text-decoration:none;color:#1a1a18;font-size:12px;transition:background .12s}
+.sr-item:hover{background:#f5f5f3}
+.sr-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sr-cat{font-size:10px;color:#9c9a92;padding:1px 5px;background:#f5f5f3;border-radius:4px;flex-shrink:0;margin-left:auto}
+.sr-drive-btn{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f5f5f3;border-radius:8px;text-decoration:none;color:#185FA5;font-size:12px;font-weight:500;transition:background .12s;margin-top:6px}
+.sr-drive-btn:hover{background:#e8e8e6}
+.sr-drive-btn svg{width:14px;height:14px;flex-shrink:0}
+.sr-drive-sub{font-size:10px;color:#73726c;font-weight:400}
+.sr-empty{font-size:11px;color:#9c9a92;padding:2px 0}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);border:0.5px solid #c8c6be;border-radius:12px;overflow:hidden;margin-bottom:20px}
+.tab{padding:12px 8px;text-align:center;cursor:pointer;background:#fff;border-right:0.5px solid #e0ddd5;transition:background .12s}
+.tab:last-child{border-right:none}
+.tab:hover{background:#f5f5f3}
+.tab.active{background:#f5f5f3}
+.tab-indicator{width:28px;height:3px;border-radius:2px;margin:0 auto 6px}
+.tab-label{font-size:13px;font-weight:500}
+.sg-section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sg-section-label{font-size:12px;color:#73726c;font-weight:500}
+.sg-add-btn{font-size:12px;padding:3px 10px;border:0.5px solid #c8c6be;border-radius:8px;background:transparent;color:#73726c;cursor:pointer;display:none}
+.sg-add-btn.show{display:block}
+.sg-row{margin-bottom:0}
+.sg-row-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0}
+.sg-card{background:#fff;border:0.5px solid #e0ddd5;border-radius:12px;padding:16px 10px 12px;cursor:pointer;text-align:center;position:relative;transition:border-color .15s}
+.sg-card:hover{border-color:#888780}
+.sg-card.active{border-color:#888780;background:#f5f5f3}
+.sg-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto 8px}
+.sg-icon svg{width:20px;height:20px}
+.sg-label{font-size:13px;font-weight:500;color:#1a1a18;margin-bottom:2px;line-height:1.4}
+.sg-count{font-size:11px;color:#9c9a92}
+.sg-edit-bar{display:none;gap:4px;justify-content:center;margin-top:6px}
+.sg-edit-bar.show{display:flex}
+.mini-btn{font-size:11px;padding:2px 7px;border:0.5px solid #c8c6be;border-radius:4px;background:#fff;cursor:pointer;color:#73726c}
+.mini-btn.danger{color:#c0392b}
+.row-panel{background:#f5f5f3;border:0.5px solid #e0ddd5;border-radius:12px;padding:14px 20px;margin-top:10px;margin-bottom:10px;display:none}
+.row-panel.open{display:block}
+.lp-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:0.5px solid #e0ddd5}
+.lp-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.lp-icon svg{width:14px;height:14px}
+.lp-title{font-size:14px;font-weight:500;color:#1a1a18;flex:1}
+.lp-count{font-size:12px;color:#73726c}
+.item-add-btn{font-size:12px;padding:3px 10px;border:none;color:#fff;background:#1D9E75;border-radius:8px;cursor:pointer;font-weight:500;display:none}
+.item-add-btn.show{display:block}
+.link-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:2px}
+.link-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;text-decoration:none;color:#1a1a18;transition:background .12s}
+.link-item:hover{background:#fff}
+.link-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.link-text{font-size:13px;flex:1}
+.empty{font-size:13px;color:#73726c;padding:4px 0}
+/* AI検索ボックス */
+.ai-search-section{background:#f5f5f3;border:0.5px solid #AFA9EC;border-radius:12px;padding:16px 20px;margin-bottom:20px}
+.ai-search-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ai-badge{font-size:11px;font-weight:500;padding:2px 8px;background:#EEEDFE;color:#3C3489;border-radius:10px}
+.ai-search-title{font-size:14px;font-weight:500;color:#1a1a18}
+.ai-search-desc{font-size:12px;color:#73726c;margin-bottom:12px;line-height:1.6}
+.ai-input-row{display:flex;gap:8px;margin-bottom:10px}
+.ai-input{flex:1;padding:10px 14px;font-size:14px;border:1px solid #AFA9EC;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.ai-input:focus{border-color:#534AB7;box-shadow:0 0 0 3px rgba(83,74,183,0.1)}
+.ai-input::placeholder{color:#b0aee0}
+.ai-btn{padding:10px 20px;font-size:13px;background:#534AB7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap;transition:background .15s}
+.ai-btn:hover{background:#3C3489}
+.ai-open-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;font-size:13px;background:#534AB7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500}
+.ai-open-btn:hover{background:#3C3489}
+.ai-open-btn svg{width:16px;height:16px}
+/* iframe埋め込み */
+.nb-embed{display:none;margin-top:12px}
+.nb-embed.show{display:block}
+.nb-frame-wrap{border:0.5px solid #AFA9EC;border-radius:10px;overflow:hidden}
+.nb-frame-header{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#EEEDFE;border-bottom:0.5px solid #AFA9EC}
+.nb-frame-header svg{width:14px;height:14px;color:#534AB7}
+.nb-frame-title{font-size:11px;color:#534AB7;font-weight:500;flex:1}
+.nb-frame-btns{display:flex;gap:6px}
+.nb-frame-btn{font-size:10px;color:#73726c;text-decoration:none;padding:2px 8px;border:0.5px solid #c8c6be;border-radius:4px;background:#fff;cursor:pointer}
+.nb-frame-btn:hover{background:#f5f5f3}
+.nb-iframe{width:100%;height:500px;border:none;background:#fff}
+.nb-blocked{padding:20px;text-align:center;background:#fff}
+.nb-blocked-icon{font-size:24px;margin-bottom:8px}
+.nb-blocked-text{font-size:13px;color:#73726c;margin-bottom:12px;line-height:1.7}
+.nb-blocked-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;background:#534AB7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;text-decoration:none}
+.nb-blocked-btn:hover{background:#3C3489}
+.ai-setup-note{font-size:11px;color:#73726c;margin-top:8px;padding:6px 10px;background:#ebebeb;border-radius:6px}
+/* モーダル */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.38);z-index:100;align-items:flex-start;justify-content:center;padding-top:60px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;border:0.5px solid #c8c6be;padding:24px;width:100%;max-width:400px}
+.modal h2{font-size:15px;font-weight:500;margin-bottom:14px;color:#1a1a18}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:12px;color:#73726c;margin-bottom:3px}
+.field input,.field select{width:100%;padding:8px 10px;font-size:13px;border:0.5px solid #c8c6be;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.field input:focus,.field select:focus{border-color:#888780}
+.modal-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.btn{padding:6px 14px;font-size:13px;border:0.5px solid #c8c6be;border-radius:8px;background:transparent;color:#73726c;cursor:pointer}
+.btn-green{background:#1D9E75;color:#fff;border-color:#1D9E75;font-weight:500}
+/* --- 画面幅に応じた列数切り替え --- */
+/* 広い画面（1200px以上）→ 6列 */
+@media(min-width:1200px){
+  .container{max-width:1100px}
+  .sg-row-cards{grid-template-columns:repeat(6,1fr)}
+}
+/* やや広い画面（1000px〜1199px）→ 5列 */
+@media(min-width:1000px) and (max-width:1199px){
+  .container{max-width:960px}
+  .sg-row-cards{grid-template-columns:repeat(5,1fr)}
+}
+/* 通常PC（768px〜999px）→ 4列 */
+/* デフォルトの4列がそのまま適用 */
+/* タブレット（600px〜767px）→ 3列 */
+@media(max-width:767px){
+  body{padding:10px}
+  .container{padding:14px;border-radius:12px}
+  .header{flex-direction:column;align-items:flex-start;gap:10px}
+  .edit-toggle{width:100%;text-align:center;padding:10px 14px;font-size:14px}
+  .tabs{grid-template-columns:repeat(4,1fr)}
+  .tab{padding:10px 4px}
+  .tab-label{font-size:12px}
+  .sg-row-cards{grid-template-columns:repeat(3,1fr);gap:8px}
+  .sg-card{padding:14px 8px 10px}
+  .sg-icon{width:36px;height:36px}
+  .sg-label{font-size:12px}
+  .link-list{grid-template-columns:1fr}
+  .link-item{padding:10px 8px;min-height:44px}
+  .link-text{font-size:14px}
+  .row-panel{padding:12px 14px}
+  .ai-input-row{flex-direction:column}
+  .ai-btn{width:100%;padding:12px;font-size:14px}
+  .ai-input{font-size:14px;padding:12px 14px}
+  .search-bar input{font-size:14px;padding:12px 14px 12px 42px}
+  .modal-overlay{padding-top:20px;align-items:center}
+  .modal{margin:0 10px;max-width:none;padding:20px}
+  .modal h2{font-size:16px}
+  .field input,.field select{padding:12px 10px;font-size:14px}
+  .btn{padding:10px 16px;font-size:14px}
+  .mini-btn{font-size:12px;padding:4px 10px}
+  .item-add-btn{padding:8px 14px;font-size:13px}
+  .sg-add-btn{padding:6px 12px;font-size:13px}
+}
+/* スマホ（480px以下）→ 2列 */
+@media(max-width:480px){
+  .tabs{grid-template-columns:repeat(2,1fr)}
+  .tab{padding:12px 6px}
+  .tab-label{font-size:11px}
+  .sg-row-cards{grid-template-columns:repeat(2,1fr)}
+  .header-left h1{font-size:18px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+  <div class="header-left">
+    <h1>業務ナビ</h1>
+    <p>カテゴリを選んで、必要なアプリ・マニュアルを探してください</p>
+  </div>
+</div>
+<div class="edit-banner" id="edit-banner">編集モード中です。ブロックの追加・リンクの追加・変更ができます。</div>
+<div class="search-bar">
+  <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input type="text" id="search-input" placeholder="キーワードで検索（登録リンク＋Googleドライブ）" oninput="onSearch()">
+</div>
+<div class="search-results" id="search-results">
+  <div class="sr-section">
+    <div class="sr-header">
+      <span class="sr-badge app">アプリ内</span>
+      <span class="sr-title">リンク登録済み</span>
+      <span class="sr-count" id="sr-app-count"></span>
+    </div>
+    <div id="sr-app-list"></div>
+  </div>
+  <div class="sr-section">
+    <div class="sr-header">
+      <span class="sr-badge drive">Google ドライブ</span>
+      <span class="sr-title">ドライブ上のファイル</span>
+    </div>
+    <div id="sr-drive-list"></div>
+  </div>
+</div>
+<div class="tabs" id="tabs"></div>
+<div id="ai-search-area"></div>
+<div class="sg-section-header">
+  <div class="sg-section-label" id="sg-section-label"></div>
+  <button class="sg-add-btn" id="sg-add-btn" onclick="openSgModal()">+ ブロックを追加</button>
+</div>
+<div id="sg-rows"></div>
+<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px">
+<button id="undo-btn" disabled style="font-size:11px;padding:4px 10px;border:0.5px solid #c8c6be;border-radius:6px;background:#fff;color:#73726c;cursor:pointer;display:none;align-items:center;gap:4px;opacity:0.4;transition:opacity .2s" onclick="undoLast()"><span style="font-size:14px">↩</span> 元に戻す</button>
+<button style="font-size:10px;padding:3px 8px;border:0.5px solid #c8c6be;border-radius:4px;background:transparent;color:#9c9a92;cursor:pointer" onclick="resetStorage()">デモデータをリセット</button>
+<button class="edit-toggle" id="edit-toggle" onclick="toggleEdit()">編集画面に移動</button>
+</div>
+<!-- ブロック追加モーダル -->
+<div class="modal-overlay" id="sg-modal-bg">
+  <div class="modal">
+    <h2 id="sg-modal-title">ブロックを追加</h2>
+    <div class="field"><label>カテゴリ</label><select id="sg-f-cat"></select></div>
+    <div class="field"><label>ブロック名</label><input type="text" id="sg-f-name" placeholder="例：施工説明書"></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeSgModal()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveSg()">保存</button>
+    </div>
+  </div>
+</div>
+<!-- 項目追加モーダル -->
+<div class="modal-overlay" id="item-modal-bg">
+  <div class="modal">
+    <h2 id="item-modal-title">項目を追加</h2>
+    <div class="field"><label>名前</label><input type="text" id="f-name" placeholder="例：キッチン施工説明書"></div>
+    <div class="field"><label>リンクURL</label><input type="text" id="f-url" placeholder="https://..."></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeItemModal()">キャンセル</button>
+      <button class="btn btn-green" onclick="saveItem()">保存</button>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+const COLS = 4;
+let isEdit = false, editIndex = null, activeCat = '検査', activeSg = null, editSgIndex = null;
+// ── データ永続化 + 元に戻す機能 ──
+const UNDO_MAX = 30;
+let undoStack = [];
+function loadFromStorage() {
+  try {
+    const sg = localStorage.getItem('gyomu_subgroups');
+    const dt = localStorage.getItem('gyomu_data');
+    const us = localStorage.getItem('gyomu_undo');
+    if (sg) subgroups = JSON.parse(sg);
+    if (dt) data = JSON.parse(dt);
+    if (us) undoStack = JSON.parse(us);
+    updateUndoBtn();
+  } catch(e) {}
+}
+function pushUndo() {
+  undoStack.push({
+    subgroups: JSON.parse(JSON.stringify(subgroups)),
+    data: JSON.parse(JSON.stringify(data))
+  });
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+}
+function saveToStorage() {
+  try {
+    localStorage.setItem('gyomu_subgroups', JSON.stringify(subgroups));
+    localStorage.setItem('gyomu_data', JSON.stringify(data));
+    localStorage.setItem('gyomu_undo', JSON.stringify(undoStack));
+    updateUndoBtn();
+    showSaveNotice('✓ 保存しました');
+  } catch(e) {}
+}
+function undoLast() {
+  if (!undoStack.length) return;
+  const prev = undoStack.pop();
+  subgroups = prev.subgroups;
+  data = prev.data;
+  activeSg = null;
+  try {
+    localStorage.setItem('gyomu_subgroups', JSON.stringify(subgroups));
+    localStorage.setItem('gyomu_data', JSON.stringify(data));
+    localStorage.setItem('gyomu_undo', JSON.stringify(undoStack));
+  } catch(e) {}
+  updateUndoBtn();
+  renderTabs(); renderAiSearch(); renderRows();
+  showSaveNotice('↩ 1つ前の状態に戻しました');
+}
+function updateUndoBtn() {
+  const btn = document.getElementById('undo-btn');
+  if (btn) {
+    btn.style.display = isEdit ? 'flex' : 'none';
+    btn.disabled = !undoStack.length;
+    btn.style.opacity = undoStack.length ? '1' : '0.4';
+    btn.title = undoStack.length ? `元に戻す（残り${undoStack.length}回）` : '戻せる操作はありません';
+  }
+}
+function resetStorage() {
+  if (confirm('デモデータを初期状態に戻しますか？')) {
+    localStorage.removeItem('gyomu_subgroups');
+    localStorage.removeItem('gyomu_data');
+    localStorage.removeItem('gyomu_undo');
+    location.reload();
+  }
+}
+function showSaveNotice(msg) {
+  let n = document.getElementById('save-notice');
+  if (!n) {
+    n = document.createElement('div');
+    n.id = 'save-notice';
+    n.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#0F6E56;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.15);display:flex;align-items:center;gap:8px;opacity:0;transition:opacity .3s';
+    document.body.appendChild(n);
+  }
+  n.textContent = msg || '✓ 保存しました';
+  n.style.opacity = '1';
+  clearTimeout(n._t);
+  n._t = setTimeout(() => { n.style.opacity = '0'; }, 2500);
+}
+const svgs = {
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
+  tool: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>',
+  plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+};
+const cats = [
+  { key: '検査', color: '#0F6E56', light: '#E1F5EE' },
+  { key: '監督', color: '#185FA5', light: '#E6F1FB' },
+  { key: '商品・納まり', color: '#534AB7', light: '#EEEDFE' },
+  { key: 'その他', color: '#854F0B', light: '#FAEEDA' },
+];
+let subgroups = {
+  '検査': [
+    { key: '検査の教科書', icon: 'book' },
+    { key: '検査の準備物', icon: 'tool' },
+    { key: 'チェックリスト', icon: 'check' },
+    { key: '検査アプリ', icon: 'search' },
+  ],
+  '監督': [
+    { key: '監督の教科書', icon: 'book' },
+    { key: '工程・計画書', icon: 'plan' },
+    { key: '安全管理', icon: 'check' },
+    { key: '現場アプリ', icon: 'search' },
+  ],
+  '商品・納まり': [
+    { key: '取扱説明書', icon: 'doc' },
+    { key: '施工説明書', icon: 'doc' },
+    { key: '納まり図集', icon: 'box' },
+    { key: '仕様・規格書', icon: 'folder' },
+  ],
+  'その他': [
+    { key: '事務処理', icon: 'plan' },
+    { key: '機械・工具教科書', icon: 'tool' },
+    { key: '社内規程', icon: 'doc' },
+    { key: 'その他マニュアル', icon: 'folder' },
+  ],
+};
+let data = [
+  { cat: '検査', sg: '検査の教科書', name: '検査実務ハンドブック', url: 'https://example.com/k1' },
+  { cat: '検査', sg: '検査の教科書', name: '建築基準法チェックポイント集', url: 'https://example.com/k2' },
+  { cat: '検査', sg: '検査の準備物', name: '検査道具チェックリスト', url: 'https://example.com/k3' },
+  { cat: '検査', sg: 'チェックリスト', name: '完了検査チェックリスト', url: 'https://example.com/k4' },
+  { cat: '検査', sg: 'チェックリスト', name: '中間検査確認シート', url: 'https://example.com/k5' },
+  { cat: '検査', sg: '検査アプリ', name: '検査写真管理アプリ', url: 'https://example.com/k6' },
+  { cat: '監督', sg: '監督の教科書', name: '施工管理入門テキスト', url: 'https://example.com/m1' },
+  { cat: '監督', sg: '監督の教科書', name: '品質管理マニュアル', url: 'https://example.com/m2' },
+  { cat: '監督', sg: '工程・計画書', name: '工程管理アプリ', url: 'https://example.com/m3' },
+  { cat: '監督', sg: '安全管理', name: '安全パトロール記録シート', url: 'https://example.com/m4' },
+  { cat: '監督', sg: '現場アプリ', name: '写真報告ツール', url: 'https://example.com/m5' },
+  { cat: '商品・納まり', sg: '取扱説明書', name: 'キッチン取扱説明書', url: 'https://example.com/s1' },
+  { cat: '商品・納まり', sg: '取扱説明書', name: '洗面台取扱説明書', url: 'https://example.com/s2' },
+  { cat: '商品・納まり', sg: '施工説明書', name: 'キッチン施工説明書（PDF）', url: 'https://example.com/s3' },
+  { cat: '商品・納まり', sg: '施工説明書', name: '外装材施工説明書（PDF）', url: 'https://example.com/s4' },
+  { cat: '商品・納まり', sg: '納まり図集', name: '水回り納まり図集', url: 'https://example.com/s5' },
+  { cat: 'その他', sg: '事務処理', name: '勤怠管理シート', url: 'https://example.com/t1' },
+  { cat: 'その他', sg: '機械・工具教科書', name: '電動工具取扱説明書', url: 'https://example.com/t2' },
+  { cat: 'その他', sg: '社内規程', name: '就業規則', url: 'https://example.com/t3' },
+];
+// ╔══════════════════════════════════════════════════════════╗
+// ║  ★★★ 設定エリア ★★★                                    ║
+// ╠══════════════════════════════════════════════════════════╣
+// ║                                                          ║
+// ║  【1】Google Drive API キー                              ║
+// ║  → Google Cloud Console で取得した API キーを貼り付け    ║
+// ║  → 取得手順: console.cloud.google.com → APIとサービス   ║
+// ║    → 認証情報 → APIキーを作成                           ║
+// ║  → Drive API を有効にしてください                        ║
+// ║                                                          ║
+const GOOGLE_DRIVE_API_KEY = '';  // ← ここにAPIキーを貼り付け
+// ║                                                          ║
+// ║  【2】NotebookLM 共有URL                                 ║
+// ║  → NotebookLM でノートブックを開く → 共有 → リンク取得  ║
+// ║                                                          ║
+const NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/f00d51af-7c13-4b69-ba90-d69fbf45554a';  // ← 設定済み
+// ║                                                          ║
+// ╚══════════════════════════════════════════════════════════╝
+function getCat(k) { return cats.find(c => c.key === k) || cats[0]; }
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = cats.map(c => `
+    <div class="tab${activeCat === c.key ? ' active' : ''}" onclick="selectCat('${c.key}')">
+      <div class="tab-indicator" style="background:${activeCat === c.key ? c.color : '#e0ddd5'}"></div>
+      <div class="tab-label" style="color:${activeCat === c.key ? c.color : '#73726c'}">${c.key}</div>
+    </div>`).join('');
+}
+function renderAiSearch() {
+  const el = document.getElementById('ai-search-area');
+  if (activeCat !== '商品・納まり') { el.innerHTML = ''; return; }
+  const hasUrl = !!NOTEBOOKLM_URL;
+  el.innerHTML = `<div class="ai-search-section">
+    <div class="ai-search-header">
+      <span class="ai-badge">AI検索</span>
+      <span class="ai-search-title">施工ルール・納まりを検索</span>
+    </div>
+    <div class="ai-search-desc">施工説明書・納まり図・社内スライドの内容をAIに質問できます。<br>「どうやったっけ？」をここで解決してください。</div>
+    <div class="ai-input-row">
+      <input type="text" class="ai-input" id="ai-question-input" placeholder="例：キッチンの水栓取付手順は？" onkeydown="if(event.key==='Enter')openNotebookWithQuestion()">
+      <button class="ai-btn" onclick="openNotebookWithQuestion()">質問する</button>
+    </div>
+    <div class="nb-embed" id="nb-embed">
+      <div class="nb-frame-wrap">
+        <div class="nb-frame-header">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+          <span class="nb-frame-title">社内帳票リンク先　納まり・施工ルール関係</span>
+          <div class="nb-frame-btns">
+            <button class="nb-frame-btn" onclick="window.open('${NOTEBOOKLM_URL}','_blank')">別タブで開く ↗</button>
+            <button class="nb-frame-btn" onclick="closeNotebook()">閉じる ✕</button>
+          </div>
+        </div>
+        ${hasUrl
+          ? `<iframe class="nb-iframe" id="nb-iframe" src="${NOTEBOOKLM_URL}" allow="clipboard-write" onload="checkIframeLoad()" onerror="showBlocked()"></iframe>`
+          : `<div class="nb-blocked"><div class="nb-blocked-text">NotebookLM URLが設定されていません。<br>HTMLファイル内の「★★★ 設定エリア ★★★」→【2】に URLを貼り付けてください。</div></div>`
+        }
+      </div>
+      <div id="ai-clipboard-msg" style="display:none;margin-top:8px;padding:8px 12px;background:#E1F5EE;border:0.5px solid #9FE1CB;border-radius:8px;font-size:12px;color:#085041;text-align:center">質問をクリップボードにコピーしました。NotebookLM内のチャット欄に貼り付けて送信してください。</div>
+    </div>
+    ${!hasUrl ? '<div class="ai-setup-note">※ 設定エリアの【2】NOTEBOOKLM_URL にURLを貼り付けると使えるようになります。</div>' : ''}
+  </div>`;
+}
+let nbOpen = false;
+function toggleNotebook() {
+  nbOpen = !nbOpen;
+  const el = document.getElementById('nb-embed');
+  if (el) el.classList.toggle('show', nbOpen);
+}
+function openNotebookWithQuestion() {
+  const input = document.getElementById('ai-question-input');
+  const question = input ? input.value.trim() : '';
+  if (!question) { if(input) input.focus(); return; }
+  // NotebookLM埋め込みを開く
+  nbOpen = true;
+  const el = document.getElementById('nb-embed');
+  if (el) el.classList.add('show');
+  // NotebookLMはiframe内で直接質問を渡せないため、
+  // 質問テキストをクリップボードにコピーして案内する
+  navigator.clipboard.writeText(question).then(() => {
+    const msg = document.getElementById('ai-clipboard-msg');
+    if (msg) { msg.style.display = 'block'; setTimeout(() => { msg.style.display = 'none'; }, 4000); }
+  }).catch(() => {});
+}
+function closeNotebook() {
+  nbOpen = false;
+  const el = document.getElementById('nb-embed');
+  if (el) el.classList.remove('show');
+}
+function checkIframeLoad() {
+  // iframeが読み込まれた後、ブロックされていないか確認
+  // ※ クロスオリジン制約でアクセスできない場合もあるため、エラーハンドリング
+  try {
+    const iframe = document.getElementById('nb-iframe');
+    if (iframe && iframe.contentDocument && iframe.contentDocument.title === '') {
+      showBlocked();
+    }
+  } catch(e) {
+    // クロスオリジンエラーは正常（読み込めている可能性あり）
+  }
+}
+function showBlocked() {
+  const iframe = document.getElementById('nb-iframe');
+  if (!iframe) return;
+  iframe.outerHTML = `<div class="nb-blocked">
+    <div class="nb-blocked-icon">🔒</div>
+    <div class="nb-blocked-text">NotebookLMは埋め込みをブロックしています。<br>下のボタンからNotebookLMを別タブで開いてご利用ください。</div>
+    <a class="nb-blocked-btn" href="${NOTEBOOKLM_URL}" target="_blank" rel="noopener">
+      NotebookLM を開く ↗
+    </a>
+  </div>`;
+}
+function getVisualCols() {
+  const w = window.innerWidth;
+  if (w <= 480) return 2;
+  if (w <= 767) return 3;
+  if (w <= 999) return 4;
+  if (w <= 1199) return 5;
+  return 6;
+}
+// 画面リサイズ時に再描画
+window.addEventListener('resize', () => { renderRows(); });
+function renderRows() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const sgs = subgroups[activeCat] || [];
+  const cat = getCat(activeCat);
+  document.getElementById('sg-section-label').textContent = activeCat + ' のブロック一覧';
+  document.getElementById('sg-add-btn').className = 'sg-add-btn' + (isEdit ? ' show' : '');
+  const visCols = getVisualCols();
+  // activeSgが何行目にいるか（画面上の行）
+  const activeSgIdx = activeSg ? sgs.findIndex(sg => sg.key === activeSg) : -1;
+  const activeVisRow = activeSgIdx >= 0 ? Math.floor(activeSgIdx / visCols) : -1;
+  // 画面上の行ごとにグループ化
+  const visRows = [];
+  for (let i = 0; i < sgs.length; i += visCols) visRows.push(sgs.slice(i, i + visCols));
+  let html = '';
+  visRows.forEach((rowSgs, rowIdx) => {
+    const cardsHtml = rowSgs.map((sg, colIdx) => {
+      const globalIdx = rowIdx * visCols + colIdx;
+      const count = q
+        ? data.filter(d => d.cat === activeCat && d.sg === sg.key && d.name.toLowerCase().includes(q)).length
+        : data.filter(d => d.cat === activeCat && d.sg === sg.key).length;
+      const isActive = activeSg === sg.key;
+      const editBtns = isEdit ? `<div class="sg-edit-bar show">
+        <button class="mini-btn" onclick="event.stopPropagation();openSgEditModal(${globalIdx})">名前変更</button>
+        <button class="mini-btn danger" onclick="event.stopPropagation();deleteSg(${globalIdx})">削除</button>
+      </div>` : '';
+      return `<div class="sg-card${isActive ? ' active' : ''}" onclick="selectSg('${sg.key}')" style="${isActive ? 'border-color:' + cat.color : ''}">
+        <div class="sg-icon" style="background:${cat.light};color:${cat.color}">${svgs[sg.icon] || svgs.doc}</div>
+        <div class="sg-label">${sg.key}</div>
+        <div class="sg-count">${count}件</div>
+        ${editBtns}
+      </div>`;
+    }).join('');
+    const empties = Array(visCols - rowSgs.length).fill('<div></div>').join('');
+    let panelHtml = '';
+    if (rowIdx === activeVisRow && activeSg) {
+      const activeSgObj = sgs.find(sg => sg.key === activeSg);
+      if (activeSgObj) {
+        const items = data.filter(d => d.cat === activeCat && d.sg === activeSgObj.key && (!q || d.name.toLowerCase().includes(q)));
+        const linksHtml = !items.length ? '<div class="empty">まだ項目がありません</div>' : items.map(item => {
+          const idx = data.indexOf(item);
+          const ab = isEdit ? `<button class="mini-btn" onclick="event.preventDefault();openItemEditModal(${idx})">編集</button><button class="mini-btn danger" onclick="event.preventDefault();deleteItem(${idx})">削除</button>` : '';
+          return `<a class="link-item" href="${item.url}" target="_blank" rel="noopener"><span class="link-dot" style="background:${cat.color}"></span><span class="link-text">${item.name}</span>${ab}</a>`;
+        }).join('');
+        const addBtn = isEdit ? `<button class="item-add-btn show" onclick="openItemModal()">+ 項目を追加</button>` : '';
+        panelHtml = `<div class="row-panel open">
+          <div class="lp-header">
+            <div class="lp-icon" style="background:${cat.light};color:${cat.color}">${svgs[activeSgObj.icon] || svgs.doc}</div>
+            <div class="lp-title">${activeSgObj.key}</div>
+            <div class="lp-count">${items.length}件</div>
+            ${addBtn}
+          </div>
+          <div class="link-list">${linksHtml}</div>
+        </div>`;
+      }
+    }
+    html += `<div class="sg-row"><div class="sg-row-cards">${cardsHtml}${empties}</div>${panelHtml}</div>`;
+  });
+  document.getElementById('sg-rows').innerHTML = html;
+}
+function selectCat(cat) { activeCat = cat; activeSg = null; renderTabs(); renderAiSearch(); renderRows(); }
+function selectSg(sg) { activeSg = activeSg === sg ? null : sg; renderRows(); }
+function onSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const panel = document.getElementById('search-results');
+  if (!q) { panel.classList.remove('show'); renderRows(); return; }
+  panel.classList.add('show');
+  const ql = q.toLowerCase();
+
+  // ── ジャンル1: アプリ内リンク登録済み ──
+  const appResults = data.filter(d => d.name.toLowerCase().includes(ql));
+  document.getElementById('sr-app-count').textContent = appResults.length + '件';
+  document.getElementById('sr-app-list').innerHTML = appResults.length === 0
+    ? '<div class="sr-empty">該当する項目はありません</div>'
+    : appResults.map(item => {
+        const cat = getCat(item.cat);
+        return `<a class="sr-item" href="${item.url}" target="_blank" rel="noopener">
+          <span class="sr-dot" style="background:${cat.color}"></span>
+          <span>${item.name}</span>
+          <span class="sr-cat">${item.cat} ＞ ${item.sg}</span>
+        </a>`;
+      }).join('');
+
+  // ── ジャンル2: Googleドライブ検索 ──
+  const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(q);
+  let driveHtml = '';
+  if (GOOGLE_DRIVE_API_KEY) {
+    // APIキーが設定されている場合 → Drive APIでファイル一覧を取得
+    driveHtml = '<div class="sr-empty">ドライブを検索中...</div>';
+    document.getElementById('sr-drive-list').innerHTML = driveHtml;
+    searchGoogleDrive(q);
+  } else {
+    // APIキー未設定 → ドライブ検索リンクのみ表示
+    driveHtml = `<a class="sr-drive-btn" href="${driveUrl}" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div>
+        <div>「${q}」をGoogleドライブで検索</div>
+        <div class="sr-drive-sub">※ APIキーを設定するとここに結果が表示されます</div>
+      </div>
+    </a>`;
+    document.getElementById('sr-drive-list').innerHTML = driveHtml;
+  }
+  renderRows();
+}
+
+// Google Drive API検索（APIキー設定後に動作）
+async function searchGoogleDrive(query) {
+  if (!GOOGLE_DRIVE_API_KEY) return;
+  try {
+    const url = `https://www.googleapis.com/drive/v3/files?q=name+contains+'${encodeURIComponent(query)}'&key=${GOOGLE_DRIVE_API_KEY}&fields=files(id,name,mimeType,webViewLink)&pageSize=10`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const files = json.files || [];
+    const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(query);
+    let html = '';
+    if (files.length > 0) {
+      html += files.map(f => {
+        const icon = f.mimeType.includes('folder') ? 'folder' : f.mimeType.includes('presentation') ? 'plan' : 'doc';
+        const type = f.mimeType.includes('folder') ? 'フォルダ' : f.mimeType.includes('presentation') ? 'スライド' : f.mimeType.includes('spreadsheet') ? 'スプレッドシート' : 'PDF/ドキュメント';
+        return `<a class="sr-item" href="${f.webViewLink}" target="_blank" rel="noopener">
+          <span class="sr-dot" style="background:#185FA5"></span>
+          <span>${f.name}</span>
+          <span class="sr-cat">${type}</span>
+        </a>`;
+      }).join('');
+    } else {
+      html += '<div class="sr-empty">ドライブに該当ファイルが見つかりませんでした</div>';
+    }
+    html += `<a class="sr-drive-btn" href="${driveUrl}" target="_blank" rel="noopener" style="margin-top:6px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div><div>ドライブでもっと探す</div></div>
+    </a>`;
+    document.getElementById('sr-drive-list').innerHTML = html;
+  } catch (e) {
+    document.getElementById('sr-drive-list').innerHTML = '<div class="sr-empty">ドライブ検索でエラーが発生しました</div>';
+  }
+}
+function toggleEdit() {
+  isEdit = !isEdit;
+  const btn = document.getElementById('edit-toggle');
+  btn.textContent = isEdit ? '編集を終了' : '編集画面に移動';
+  btn.classList.toggle('active', isEdit);
+  document.getElementById('edit-banner').classList.toggle('show', isEdit);
+  updateUndoBtn();
+  renderRows();
+}
+function openSgModal() {
+  editSgIndex = null;
+  document.getElementById('sg-modal-title').textContent = 'ブロックを追加';
+  document.getElementById('sg-f-cat').innerHTML = cats.map(c => `<option value="${c.key}"${c.key === activeCat ? ' selected' : ''}>${c.key}</option>`).join('');
+  document.getElementById('sg-f-name').value = '';
+  document.getElementById('sg-modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('sg-f-name').focus(), 50);
+}
+function openSgEditModal(i) {
+  editSgIndex = i;
+  const sg = subgroups[activeCat][i];
+  document.getElementById('sg-modal-title').textContent = 'ブロック名を変更';
+  document.getElementById('sg-f-cat').innerHTML = cats.map(c => `<option value="${c.key}"${c.key === activeCat ? ' selected' : ''}>${c.key}</option>`).join('');
+  document.getElementById('sg-f-name').value = sg.key;
+  document.getElementById('sg-modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('sg-f-name').focus(), 50);
+}
+function closeSgModal() { document.getElementById('sg-modal-bg').classList.remove('open'); }
+function saveSg() {
+  const cat = document.getElementById('sg-f-cat').value;
+  const name = document.getElementById('sg-f-name').value.trim();
+  if (!name) return;
+  pushUndo();
+  if (!subgroups[cat]) subgroups[cat] = [];
+  if (editSgIndex !== null) {
+    const oldKey = subgroups[cat][editSgIndex].key;
+    subgroups[cat][editSgIndex].key = name;
+    data.forEach(d => { if (d.cat === cat && d.sg === oldKey) d.sg = name; });
+    if (activeSg === oldKey) activeSg = name;
+  } else {
+    subgroups[cat].push({ key: name, icon: 'doc' });
+  }
+  closeSgModal(); saveToStorage(); renderRows();
+}
+function deleteSg(i) {
+  const sg = subgroups[activeCat][i];
+  if (!confirm(`「${sg.key}」を削除しますか？\n（このブロック内の項目もすべて削除されます）`)) return;
+  pushUndo();
+  data = data.filter(d => !(d.cat === activeCat && d.sg === sg.key));
+  subgroups[activeCat].splice(i, 1);
+  if (activeSg === sg.key) activeSg = null;
+  saveToStorage(); renderRows();
+}
+function openItemModal() {
+  editIndex = null;
+  document.getElementById('item-modal-title').textContent = '項目を追加';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-url').value = '';
+  document.getElementById('item-modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+function openItemEditModal(idx) {
+  editIndex = idx;
+  const item = data[idx];
+  document.getElementById('item-modal-title').textContent = '項目を編集';
+  document.getElementById('f-name').value = item.name;
+  document.getElementById('f-url').value = item.url;
+  document.getElementById('item-modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+function closeItemModal() { document.getElementById('item-modal-bg').classList.remove('open'); }
+function saveItem() {
+  const name = document.getElementById('f-name').value.trim();
+  const url = document.getElementById('f-url').value.trim();
+  if (!name || !url) return;
+  pushUndo();
+  if (editIndex !== null) { data[editIndex] = { ...data[editIndex], name, url }; }
+  else { data.push({ cat: activeCat, sg: activeSg, name, url }); }
+  closeItemModal(); saveToStorage(); renderRows();
+}
+function deleteItem(idx) {
+  if (confirm('削除しますか？')) { pushUndo(); data.splice(idx, 1); saveToStorage(); renderRows(); }
+}
+loadFromStorage();
+renderTabs(); renderAiSearch(); renderRows();
+</script>
+</body>
+</html>
