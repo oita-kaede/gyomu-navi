@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>業務ナビ</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#f5f5f3;color:#1a1a18;padding:20px;min-height:100vh}
@@ -175,14 +177,45 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
   .sg-row-cards{grid-template-columns:repeat(2,1fr)}
   .header-left h1{font-size:18px}
 }
+/* Google Sync UI */
+.sync-area{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.sync-login-btn{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:11px;border:0.5px solid #c8c6be;border-radius:6px;background:#fff;color:#73726c;cursor:pointer;transition:all .15s;white-space:nowrap}
+.sync-login-btn:hover{color:#1a1a18;border-color:#888780;background:#f9f9f8}
+.sync-login-btn svg{width:14px;height:14px;flex-shrink:0}
+.sync-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#73726c;white-space:nowrap}
+.sync-status .sync-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.sync-status .sync-dot.ok{background:#1D9E75}
+.sync-status .sync-dot.busy{background:#D4A017;animation:syncPulse 1s infinite}
+.sync-status .sync-dot.off{background:#c8c6be}
+.sync-user-info{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#73726c}
+.sync-user-info img{width:20px;height:20px;border-radius:50%}
+.sync-logout-btn{font-size:10px;color:#9c9a92;cursor:pointer;border:none;background:none;text-decoration:underline}
+.sync-logout-btn:hover{color:#73726c}
+@keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.4}}
+@media(max-width:767px){
+  .sync-area{width:100%;justify-content:flex-end}
+  .sync-login-btn{font-size:12px;padding:8px 14px}
+}
 </style>
 </head>
 <body>
 <div class="container">
 <div class="header">
   <div class="header-left">
-    <h1>業務ナビ</h1>
+    <h1 id="app-title">業務ナビ</h1>
     <p>カテゴリを選んで、必要なアプリ・マニュアルを探してください</p>
+  </div>
+  <div class="sync-area" id="sync-area">
+    <button class="sync-login-btn" id="sync-login-btn" onclick="handleGoogleLogin()" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15.5 3H5a2 2 0 00-2 2v14c0 1.1.9 2 2 2h14a2 2 0 002-2V8.5L15.5 3z"/><path d="M15 3v6h6"/></svg>
+      Googleアカウントでログイン
+    </button>
+    <span class="sync-status" id="sync-status" style="display:none">
+      <span class="sync-dot off" id="sync-dot"></span>
+      <span id="sync-text">オフライン</span>
+    </span>
+    <span class="sync-user-info" id="sync-user-info" style="display:none"></span>
+    <button class="sync-logout-btn" id="sync-logout-btn" style="display:none" onclick="handleGoogleLogout()">ログアウト</button>
   </div>
 </div>
 <div class="edit-banner" id="edit-banner">編集モード中です。ブロックの追加・リンクの追加・変更ができます。</div>
@@ -216,7 +249,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 <div id="sg-rows"></div>
 <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px">
 <button id="undo-btn" disabled style="font-size:11px;padding:4px 10px;border:0.5px solid #c8c6be;border-radius:6px;background:#fff;color:#73726c;cursor:pointer;display:none;align-items:center;gap:4px;opacity:0.4;transition:opacity .2s" onclick="undoLast()"><span style="font-size:14px">↩</span> 元に戻す</button>
-
 <button class="edit-toggle" id="edit-toggle" onclick="toggleEdit()">編集画面に移動</button>
 </div>
 <!-- ブロック追加モーダル -->
@@ -247,6 +279,314 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 <script>
 const COLS = 4;
 let isEdit = false, editIndex = null, activeCat = '検査', activeSg = null, editSgIndex = null;
+
+// ═══════════════════════════════════════════════════════
+//  Google Sheets Integration Constants
+// ═══════════════════════════════════════════════════════
+const OAUTH_CLIENT_ID = '261087242588-i5u578a5fpi1chomkur6gffv1tq5f7k2.apps.googleusercontent.com';
+const SPREADSHEET_ID = '1UgO0Y_IOD_ASwzrZLP-JcG0sfiMxs9GEI7s02J0Ifoc';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const SHEET_BLOCKS = 'ブロック一覧';
+const SHEET_LINKS = 'リンク一覧';
+const SHEET_SETTINGS = '◎設定';
+
+let gisInited = false, gapiInited = false;
+let tokenClient = null;
+let accessToken = null;
+let googleUser = null;
+let isSyncing = false;
+
+// ── Google API initialization ──
+function initGapiClient() {
+  gapi.client.init({}).then(function() {
+    gapi.client.load('sheets', 'v4').then(function() {
+      gapiInited = true;
+      maybeEnableLogin();
+    });
+  });
+}
+
+function gapiLoaded() {
+  gapi.load('client', initGapiClient);
+}
+
+function gisLoaded() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: OAUTH_CLIENT_ID,
+    scope: SCOPES,
+    callback: onTokenResponse,
+  });
+  gisInited = true;
+  maybeEnableLogin();
+}
+
+function maybeEnableLogin() {
+  if (gisInited && gapiInited) {
+    document.getElementById('sync-login-btn').style.display = 'inline-flex';
+    // Check if we have a cached token
+    const cached = localStorage.getItem('gyomu_gtoken');
+    if (cached) {
+      try {
+        const t = JSON.parse(cached);
+        if (t.access_token && t.expires_at && Date.now() < t.expires_at) {
+          accessToken = t.access_token;
+          gapi.client.setToken({ access_token: accessToken });
+          const ui = localStorage.getItem('gyomu_guser');
+          if (ui) googleUser = JSON.parse(ui);
+          showLoggedIn();
+          syncFromSheets();
+          return;
+        }
+      } catch(e) {}
+      localStorage.removeItem('gyomu_gtoken');
+    }
+  }
+}
+
+function handleGoogleLogin() {
+  if (!tokenClient) return;
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function onTokenResponse(resp) {
+  if (resp.error) { console.error('OAuth error:', resp.error); return; }
+  accessToken = resp.access_token;
+  gapi.client.setToken({ access_token: accessToken });
+  // Cache the token with expiry
+  const expiresAt = Date.now() + (resp.expires_in || 3600) * 1000;
+  localStorage.setItem('gyomu_gtoken', JSON.stringify({
+    access_token: accessToken,
+    expires_at: expiresAt
+  }));
+  // Fetch user info
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  }).then(r => r.json()).then(info => {
+    googleUser = { name: info.name || info.email, email: info.email, picture: info.picture };
+    localStorage.setItem('gyomu_guser', JSON.stringify(googleUser));
+    showLoggedIn();
+    syncFromSheets();
+  }).catch(() => {
+    showLoggedIn();
+    syncFromSheets();
+  });
+}
+
+function handleGoogleLogout() {
+  if (accessToken) {
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  accessToken = null;
+  googleUser = null;
+  gapi.client.setToken(null);
+  localStorage.removeItem('gyomu_gtoken');
+  localStorage.removeItem('gyomu_guser');
+  showLoggedOut();
+}
+
+function showLoggedIn() {
+  document.getElementById('sync-login-btn').style.display = 'none';
+  document.getElementById('sync-status').style.display = 'inline-flex';
+  document.getElementById('sync-logout-btn').style.display = 'inline';
+  const infoEl = document.getElementById('sync-user-info');
+  if (googleUser) {
+    let html = '';
+    if (googleUser.picture) html += '<img src="' + googleUser.picture + '" alt="">';
+    html += '<span>' + (googleUser.name || googleUser.email || '') + '</span>';
+    infoEl.innerHTML = html;
+    infoEl.style.display = 'inline-flex';
+  }
+  setSyncStatus('off', 'ログイン済み');
+}
+
+function showLoggedOut() {
+  document.getElementById('sync-login-btn').style.display = 'inline-flex';
+  document.getElementById('sync-status').style.display = 'none';
+  document.getElementById('sync-user-info').style.display = 'none';
+  document.getElementById('sync-user-info').innerHTML = '';
+  document.getElementById('sync-logout-btn').style.display = 'none';
+}
+
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = 'sync-dot ' + state; // 'ok', 'busy', 'off'
+  txt.textContent = text;
+}
+
+// ── Read from Google Sheets ──
+async function syncFromSheets() {
+  if (!accessToken || isSyncing) return;
+  isSyncing = true;
+  setSyncStatus('busy', '同期中...');
+  try {
+    const resp = await gapi.client.sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges: [
+        SHEET_BLOCKS + '!A2:F',
+        SHEET_LINKS + '!A2:F',
+        SHEET_SETTINGS + '!B7:C19'
+      ]
+    });
+    const ranges = resp.result.valueRanges || [];
+    const blockRows = (ranges[0] && ranges[0].values) || [];
+    const linkRows = (ranges[1] && ranges[1].values) || [];
+    const settingsRows = (ranges[2] && ranges[2].values) || [];
+
+    // Parse settings
+    const settings = {};
+    settingsRows.forEach(row => {
+      if (row[0] && row[1] !== undefined) settings[row[0].trim()] = row[1];
+    });
+    applySettings(settings);
+
+    // Parse blocks → subgroups
+    const newSubgroups = {};
+    cats.forEach(c => { newSubgroups[c.key] = []; });
+    blockRows.forEach(row => {
+      const cat = (row[0] || '').trim();
+      const blockName = (row[1] || '').trim();
+      const icon = (row[2] || 'doc').trim();
+      if (cat && blockName) {
+        if (!newSubgroups[cat]) newSubgroups[cat] = [];
+        // Maintain order from spreadsheet (並び順 in col D is informational)
+        newSubgroups[cat].push({ key: blockName, icon: icon });
+      }
+    });
+
+    // Parse links → data
+    const newData = [];
+    linkRows.forEach(row => {
+      const cat = (row[0] || '').trim();
+      const sg = (row[1] || '').trim();
+      const name = (row[2] || '').trim();
+      const url = (row[3] || '').trim();
+      if (cat && sg && name) {
+        newData.push({ cat, sg, name, url });
+      }
+    });
+
+    subgroups = newSubgroups;
+    data = newData;
+
+    // Update localStorage cache
+    localStorage.setItem('gyomu_subgroups', JSON.stringify(subgroups));
+    localStorage.setItem('gyomu_data', JSON.stringify(data));
+
+    // Re-render
+    activeSg = null;
+    renderTabs(); renderAiSearch(); renderRows();
+    setSyncStatus('ok', '同期済み ✓');
+    isSyncing = false;
+  } catch(e) {
+    console.error('Sheets read error:', e);
+    setSyncStatus('off', '同期エラー');
+    isSyncing = false;
+    showSaveNotice('⚠ スプレッドシート読み込みに失敗しました');
+  }
+}
+
+function applySettings(settings) {
+  // Apply known settings from ◎設定 sheet
+  // Keys match the B column values in the settings sheet exactly
+  if (settings['NotebookLM URL']) {
+    NOTEBOOKLM_URL = settings['NotebookLM URL'];
+  }
+  if (settings['アプリ名']) {
+    const titleEl = document.getElementById('app-title');
+    if (titleEl) titleEl.textContent = settings['アプリ名'];
+    document.title = settings['アプリ名'];
+  }
+  if (settings['OAuth クライアントID']) {
+    // OAuth Client ID is already set as constant, but log for debugging
+    console.log('Settings: OAuth Client ID found in sheet');
+  }
+  if (settings['検索表示件数']) {
+    // Could be used to limit Drive search results
+    console.log('Settings: 検索表示件数 =', settings['検索表示件数']);
+  }
+}
+
+// ── Write to Google Sheets ──
+async function syncToSheets() {
+  if (!accessToken) return;
+  isSyncing = true;
+  setSyncStatus('busy', '保存中...');
+  const today = new Date().toLocaleDateString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit'}).replace(/\//g, '/');
+  try {
+    // Build block rows
+    const blockValues = [];
+    let order = 1;
+    cats.forEach(c => {
+      (subgroups[c.key] || []).forEach(sg => {
+        blockValues.push([c.key, sg.key, sg.icon, order++, today, today]);
+      });
+    });
+
+    // Build link rows
+    const linkValues = [];
+    data.forEach(d => {
+      linkValues.push([d.cat, d.sg, d.name, d.url, today, today]);
+    });
+
+    // Clear and write blocks
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range: SHEET_BLOCKS + '!A2:F'
+    });
+    if (blockValues.length > 0) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: SHEET_BLOCKS + '!A2:F' + (blockValues.length + 1),
+        valueInputOption: 'RAW',
+        resource: { values: blockValues }
+      });
+    }
+
+    // Clear and write links
+    await gapi.client.sheets.spreadsheets.values.clear({
+      spreadsheetId: SPREADSHEET_ID,
+      range: SHEET_LINKS + '!A2:F'
+    });
+    if (linkValues.length > 0) {
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: SHEET_LINKS + '!A2:F' + (linkValues.length + 1),
+        valueInputOption: 'RAW',
+        resource: { values: linkValues }
+      });
+    }
+
+    setSyncStatus('ok', '同期済み ✓');
+    isSyncing = false;
+  } catch(e) {
+    console.error('Sheets write error:', e);
+    setSyncStatus('off', '同期エラー');
+    isSyncing = false;
+    showSaveNotice('⚠ スプレッドシートへの書き込みに失敗しました');
+  }
+}
+
+// Wait for external scripts to load, then init
+function waitForGis() {
+  if (gisInited) return;
+  if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+    gisLoaded();
+  } else {
+    setTimeout(waitForGis, 150);
+  }
+}
+function waitForGapi() {
+  if (gapiInited) return;
+  if (typeof gapi !== 'undefined' && gapi.load) {
+    gapiLoaded();
+  } else {
+    setTimeout(waitForGapi, 150);
+  }
+}
+// Start polling after DOM ready
+setTimeout(function() { waitForGis(); waitForGapi(); }, 200);
+
 // ── データ永続化 + 元に戻す機能 ──
 const UNDO_MAX = 30;
 let undoStack = [];
@@ -276,6 +616,10 @@ function saveToStorage() {
     updateUndoBtn();
     showSaveNotice('✓ 保存しました');
   } catch(e) {}
+  // If logged in, also write to Sheets
+  if (accessToken) {
+    syncToSheets();
+  }
 }
 function undoLast() {
   if (!undoStack.length) return;
@@ -291,6 +635,8 @@ function undoLast() {
   updateUndoBtn();
   renderTabs(); renderAiSearch(); renderRows();
   showSaveNotice('↩ 1つ前の状態に戻しました');
+  // Sync undo to Sheets too
+  if (accessToken) { syncToSheets(); }
 }
 function updateUndoBtn() {
   const btn = document.getElementById('undo-btn');
@@ -395,12 +741,12 @@ let data = [
 // ║    → 認証情報 → APIキーを作成                           ║
 // ║  → Drive API を有効にしてください                        ║
 // ║                                                          ║
-const GOOGLE_DRIVE_API_KEY = '';  // ← ここにAPIキーを貼り付け
+let GOOGLE_DRIVE_API_KEY = '';  // ← ここにAPIキーを貼り付け（◎設定シートから自動取得可）
 // ║                                                          ║
 // ║  【2】NotebookLM 共有URL                                 ║
 // ║  → NotebookLM でノートブックを開く → 共有 → リンク取得  ║
 // ║                                                          ║
-const NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/f00d51af-7c13-4b69-ba90-d69fbf45554a';  // ← 設定済み
+let NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/f00d51af-7c13-4b69-ba90-d69fbf45554a';  // ← 設定済み（◎設定シートから自動取得可）
 // ║                                                          ║
 // ╚══════════════════════════════════════════════════════════╝
 function getCat(k) { return cats.find(c => c.key === k) || cats[0]; }
