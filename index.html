@@ -96,23 +96,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',san
 .ai-open-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;font-size:13px;background:#534AB7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500}
 .ai-open-btn:hover{background:#3C3489}
 .ai-open-btn svg{width:16px;height:16px}
-/* iframe埋め込み */
-.nb-embed{display:none;margin-top:12px}
-.nb-embed.show{display:block}
-.nb-frame-wrap{border:0.5px solid #AFA9EC;border-radius:10px;overflow:hidden}
-.nb-frame-header{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#EEEDFE;border-bottom:0.5px solid #AFA9EC}
-.nb-frame-header svg{width:14px;height:14px;color:#534AB7}
-.nb-frame-title{font-size:11px;color:#534AB7;font-weight:500;flex:1}
-.nb-frame-btns{display:flex;gap:6px}
-.nb-frame-btn{font-size:10px;color:#73726c;text-decoration:none;padding:2px 8px;border:0.5px solid #c8c6be;border-radius:4px;background:#fff;cursor:pointer}
-.nb-frame-btn:hover{background:#f5f5f3}
-.nb-iframe{width:100%;height:500px;border:none;background:#fff}
-.nb-blocked{padding:20px;text-align:center;background:#fff}
-.nb-blocked-icon{font-size:24px;margin-bottom:8px}
-.nb-blocked-text{font-size:13px;color:#73726c;margin-bottom:12px;line-height:1.7}
-.nb-blocked-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;background:#534AB7;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:500;text-decoration:none}
-.nb-blocked-btn:hover{background:#3C3489}
-.ai-setup-note{font-size:11px;color:#73726c;margin-top:8px;padding:6px 10px;background:#ebebeb;border-radius:6px}
+/* AI回答エリア */
+.ai-answer-area{margin-top:12px;display:none}
+.ai-answer-area.show{display:block}
+.ai-answer-box{background:#fff;border:0.5px solid #AFA9EC;border-radius:10px;padding:16px;line-height:1.8}
+.ai-answer-label{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:#534AB7;margin-bottom:10px}
+.ai-answer-label svg{width:16px;height:16px}
+.ai-answer-text{font-size:13px;color:#1a1a18;white-space:pre-wrap}
+.ai-answer-text ol,.ai-answer-text ul{margin:8px 0;padding-left:22px}
+.ai-answer-text li{margin-bottom:4px}
+.ai-sources{margin-top:12px;padding-top:10px;border-top:0.5px solid #e0ddd5}
+.ai-source-link{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#185FA5;text-decoration:none;padding:4px 8px;background:#E6F1FB;border-radius:6px;margin:2px 4px 2px 0;transition:background .12s}
+.ai-source-link:hover{background:#B5D4F4}
+.ai-source-link svg{width:12px;height:12px}
+.ai-loading-area{display:none;text-align:center;padding:24px}
+.ai-loading-area.show{display:block}
+.ai-loading-dots{display:inline-flex;gap:6px}
+.ai-loading-dots span{width:8px;height:8px;border-radius:50%;background:#AFA9EC;animation:aiPulse 1.2s infinite}
+.ai-loading-dots span:nth-child(2){animation-delay:0.2s}
+.ai-loading-dots span:nth-child(3){animation-delay:0.4s}
+@keyframes aiPulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
+.ai-loading-text{font-size:12px;color:#73726c;margin-top:8px}
+.ai-error-msg{display:none;margin-top:8px;padding:8px 12px;background:#FCEBEB;border:0.5px solid #F7C1C1;border-radius:8px;font-size:12px;color:#791F1F}
+.ai-error-msg.show{display:block}
 /* モーダル */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.38);z-index:100;align-items:flex-start;justify-content:center;padding-top:60px}
 .modal-overlay.open{display:flex}
@@ -524,8 +530,8 @@ async function syncFromSheets() {
 function applySettings(settings) {
   // Apply known settings from ◎設定 sheet
   // Keys match the B column values in the settings sheet exactly
-  if (settings['NotebookLM URL']) {
-    NOTEBOOKLM_URL = settings['NotebookLM URL'];
+  if (settings['GAS Web App URL']) {
+    GAS_WEBAPP_URL = settings['GAS Web App URL'];
   }
   if (settings['アプリ名']) {
     const titleEl = document.getElementById('app-title');
@@ -769,10 +775,10 @@ let data = [
 // ║  → OAuthログインで自動的にDrive APIが使えます            ║
 // ║  → APIキーは不要です                                     ║
 // ║                                                          ║
-// ║  【2】NotebookLM 共有URL                                 ║
-// ║  → NotebookLM でノートブックを開く → 共有 → リンク取得  ║
+// ║  【2】GAS Web App URL（Gemini AIプロキシ）                 ║
+// ║  → GASをデプロイして取得したURLを貼り付け                ║
 // ║                                                          ║
-let NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/f00d51af-7c13-4b69-ba90-d69fbf45554a';  // ← 設定済み（◎設定シートから自動取得可）
+let GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyfhyxrGppDTCNkhkZeJ6Xk9xtWcWPumWhkx_0NtubLqOmd-rMlp-468pIxu6ahs4zHDA/exec';
 // ║                                                          ║
 // ╚══════════════════════════════════════════════════════════╝
 function getCat(k) { return cats.find(c => c.key === k) || cats[0]; }
@@ -786,85 +792,106 @@ function renderTabs() {
 function renderAiSearch() {
   const el = document.getElementById('ai-search-area');
   if (activeCat !== '商品・納まり') { el.innerHTML = ''; return; }
-  const hasUrl = !!NOTEBOOKLM_URL;
+  const hasUrl = !!GAS_WEBAPP_URL;
   el.innerHTML = `<div class="ai-search-section">
     <div class="ai-search-header">
       <span class="ai-badge">AI検索</span>
       <span class="ai-search-title">施工ルール・納まりを検索</span>
     </div>
-    <div class="ai-search-desc">施工説明書・納まり図・社内スライドの内容をAIに質問できます。<br>「どうやったっけ？」をここで解決してください。</div>
+    <div class="ai-search-desc">施工説明書・納まり図・社内スライドの内容をAIに質問できます。<br>質問を入力すると、社内資料を参照してAIが回答します。</div>
     <div class="ai-input-row">
-      <input type="text" class="ai-input" id="ai-question-input" placeholder="例：キッチンの水栓取付手順は？" onkeydown="if(event.key==='Enter')openNotebookWithQuestion()">
-      <button class="ai-btn" onclick="openNotebookWithQuestion()">質問する</button>
+      <input type="text" class="ai-input" id="ai-question-input" placeholder="例：キッチンの水栓取付手順は？" onkeydown="if(event.key==='Enter')askGeminiAi()">
+      <button class="ai-btn" id="ai-ask-btn" onclick="askGeminiAi()">質問する</button>
     </div>
-    <div class="nb-embed" id="nb-embed">
-      <div class="nb-frame-wrap">
-        <div class="nb-frame-header">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
-          <span class="nb-frame-title">社内帳票リンク先　納まり・施工ルール関係</span>
-          <div class="nb-frame-btns">
-            <button class="nb-frame-btn" onclick="window.open('${NOTEBOOKLM_URL}','_blank')">別タブで開く ↗</button>
-            <button class="nb-frame-btn" onclick="closeNotebook()">閉じる ✕</button>
-          </div>
+    <div class="ai-loading-area" id="ai-loading">
+      <div class="ai-loading-dots"><span></span><span></span><span></span></div>
+      <div class="ai-loading-text">社内資料を検索中...</div>
+    </div>
+    <div class="ai-answer-area" id="ai-answer-area">
+      <div class="ai-answer-box">
+        <div class="ai-answer-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93V12h2.75a2.5 2.5 0 012.5 2.5V16a4 4 0 11-2 0v-1.5a.5.5 0 00-.5-.5h-6a.5.5 0 00-.5.5V16a4 4 0 11-2 0v-1.5A2.5 2.5 0 019.5 12h2.75V9.93A4.001 4.001 0 018 6a4 4 0 014-4z"/></svg>
+          AI回答
         </div>
-        ${hasUrl
-          ? `<iframe class="nb-iframe" id="nb-iframe" src="${NOTEBOOKLM_URL}" allow="clipboard-write" onload="checkIframeLoad()" onerror="showBlocked()"></iframe>`
-          : `<div class="nb-blocked"><div class="nb-blocked-text">NotebookLM URLが設定されていません。<br>HTMLファイル内の「★★★ 設定エリア ★★★」→【2】に URLを貼り付けてください。</div></div>`
-        }
+        <div class="ai-answer-text" id="ai-answer-text"></div>
+        <div class="ai-sources" id="ai-sources" style="display:none"></div>
       </div>
-      <div id="ai-clipboard-msg" style="display:none;margin-top:8px;padding:8px 12px;background:#E1F5EE;border:0.5px solid #9FE1CB;border-radius:8px;font-size:12px;color:#085041;text-align:center">質問をクリップボードにコピーしました。NotebookLM内のチャット欄に貼り付けて送信してください。</div>
     </div>
-    ${!hasUrl ? '<div class="ai-setup-note">※ 設定エリアの【2】NOTEBOOKLM_URL にURLを貼り付けると使えるようになります。</div>' : ''}
+    <div class="ai-error-msg" id="ai-error"></div>
+    ${!hasUrl ? '<div class="ai-error-msg show">GAS Web App URLが未設定です。設定シートの「GAS Web App URL」にデプロイURLを入力してください。</div>' : ''}
   </div>`;
 }
-let nbOpen = false;
-function toggleNotebook() {
-  nbOpen = !nbOpen;
-  const el = document.getElementById('nb-embed');
-  if (el) el.classList.toggle('show', nbOpen);
-}
-function openNotebookWithQuestion() {
+let aiAsking = false;
+async function askGeminiAi() {
+  if (aiAsking) return;
   const input = document.getElementById('ai-question-input');
   const question = input ? input.value.trim() : '';
   if (!question) { if(input) input.focus(); return; }
-  // NotebookLM埋め込みを開く
-  nbOpen = true;
-  const el = document.getElementById('nb-embed');
-  if (el) el.classList.add('show');
-  // NotebookLMはiframe内で直接質問を渡せないため、
-  // 質問テキストをクリップボードにコピーして案内する
-  navigator.clipboard.writeText(question).then(() => {
-    const msg = document.getElementById('ai-clipboard-msg');
-    if (msg) { msg.style.display = 'block'; setTimeout(() => { msg.style.display = 'none'; }, 4000); }
-  }).catch(() => {});
-}
-function closeNotebook() {
-  nbOpen = false;
-  const el = document.getElementById('nb-embed');
-  if (el) el.classList.remove('show');
-}
-function checkIframeLoad() {
-  // iframeが読み込まれた後、ブロックされていないか確認
-  // ※ クロスオリジン制約でアクセスできない場合もあるため、エラーハンドリング
-  try {
-    const iframe = document.getElementById('nb-iframe');
-    if (iframe && iframe.contentDocument && iframe.contentDocument.title === '') {
-      showBlocked();
-    }
-  } catch(e) {
-    // クロスオリジンエラーは正常（読み込めている可能性あり）
+  if (!GAS_WEBAPP_URL) {
+    const err = document.getElementById('ai-error');
+    if (err) { err.textContent = 'GAS Web App URLが設定されていません。'; err.classList.add('show'); }
+    return;
   }
-}
-function showBlocked() {
-  const iframe = document.getElementById('nb-iframe');
-  if (!iframe) return;
-  iframe.outerHTML = `<div class="nb-blocked">
-    <div class="nb-blocked-icon">🔒</div>
-    <div class="nb-blocked-text">NotebookLMは埋め込みをブロックしています。<br>下のボタンからNotebookLMを別タブで開いてご利用ください。</div>
-    <a class="nb-blocked-btn" href="${NOTEBOOKLM_URL}" target="_blank" rel="noopener">
-      NotebookLM を開く ↗
-    </a>
-  </div>`;
+  // UI更新: ローディング表示
+  aiAsking = true;
+  const btn = document.getElementById('ai-ask-btn');
+  const loading = document.getElementById('ai-loading');
+  const answerArea = document.getElementById('ai-answer-area');
+  const errorEl = document.getElementById('ai-error');
+  if (btn) btn.disabled = true;
+  if (loading) loading.classList.add('show');
+  if (answerArea) answerArea.classList.remove('show');
+  if (errorEl) errorEl.classList.remove('show');
+
+  try {
+    const resp = await fetch(GAS_WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ question: question })
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    // 回答を表示
+    const answerText = document.getElementById('ai-answer-text');
+    const sourcesEl = document.getElementById('ai-sources');
+
+    if (answerText) {
+      // マークダウン風の簡易整形
+      let html = (data.answer || '回答を取得できませんでした')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+      answerText.innerHTML = html;
+    }
+
+    // 参照元リンク
+    if (sourcesEl && data.sources && data.sources.length > 0) {
+      sourcesEl.style.display = 'block';
+      sourcesEl.innerHTML = '<div style="font-size:11px;color:#73726c;margin-bottom:6px">参照元:</div>' +
+        data.sources.map(function(s) {
+          return '<a class="ai-source-link" href="' + s.url + '" target="_blank" rel="noopener">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>' +
+            s.name + '</a>';
+        }).join('');
+    } else if (sourcesEl) {
+      sourcesEl.style.display = 'none';
+    }
+
+    if (answerArea) answerArea.classList.add('show');
+
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = 'エラー: ' + (err.message || '回答の取得に失敗しました');
+      errorEl.classList.add('show');
+    }
+  } finally {
+    aiAsking = false;
+    if (btn) btn.disabled = false;
+    if (loading) loading.classList.remove('show');
+  }
 }
 function getVisualCols() {
   const w = window.innerWidth;
