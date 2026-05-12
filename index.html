@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>業務ナビ</title>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -286,22 +285,91 @@ let isEdit = false, editIndex = null, activeCat = '検査', activeSg = null, edi
 const OAUTH_CLIENT_ID = '261087242588-i5u578a5fpi1chomkur6gffv1tq5f7k2.apps.googleusercontent.com';
 const SPREADSHEET_ID = '1UgO0Y_IOD_ASwzrZLP-JcG0sfiMxs9GEI7s02J0Ifoc';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const REDIRECT_URI = window.location.origin + '/gyomu-navi/';
 const SHEET_BLOCKS = 'ブロック一覧';
 const SHEET_LINKS = 'リンク一覧';
 const SHEET_SETTINGS = '⚙ 設定';
 
-let gisInited = false, gapiInited = false;
-let tokenClient = null;
+let gapiInited = false;
 let accessToken = null;
 let googleUser = null;
 let isSyncing = false;
+let authChecked = false;
 
-// ── Google API initialization ──
+// ── Check for OAuth redirect result in URL hash ──
+function checkRedirectResult() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const token = params.get('access_token');
+    const expiresIn = parseInt(params.get('expires_in') || '3600');
+    if (token) {
+      accessToken = token;
+      const expiresAt = Date.now() + expiresIn * 1000;
+      localStorage.setItem('gyomu_gtoken', JSON.stringify({
+        access_token: token, expires_at: expiresAt
+      }));
+      // Clean up URL hash
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      // Fetch user info
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: 'Bearer ' + token }
+      }).then(function(r) { return r.json(); }).then(function(info) {
+        googleUser = { name: info.name || info.email, email: info.email, picture: info.picture };
+        localStorage.setItem('gyomu_guser', JSON.stringify(googleUser));
+        showLoggedIn();
+        onAuthReady();
+      }).catch(function() {
+        showLoggedIn();
+        onAuthReady();
+      });
+      return true;
+    }
+  }
+  // Check for error in redirect (e.g. user denied)
+  if (hash && hash.includes('error')) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  return false;
+}
+
+// ── Check cached token ──
+function checkCachedToken() {
+  const cached = localStorage.getItem('gyomu_gtoken');
+  if (cached) {
+    try {
+      const t = JSON.parse(cached);
+      if (t.access_token && t.expires_at && Date.now() < t.expires_at) {
+        accessToken = t.access_token;
+        const ui = localStorage.getItem('gyomu_guser');
+        if (ui) googleUser = JSON.parse(ui);
+        showLoggedIn();
+        return true;
+      }
+    } catch(e) {}
+    localStorage.removeItem('gyomu_gtoken');
+  }
+  return false;
+}
+
+// ── Redirect to Google OAuth (implicit grant) ──
+function redirectToGoogleLogin() {
+  const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
+    '?client_id=' + encodeURIComponent(OAUTH_CLIENT_ID) +
+    '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
+    '&response_type=token' +
+    '&scope=' + encodeURIComponent(SCOPES) +
+    '&include_granted_scopes=true' +
+    '&prompt=select_account';
+  window.location.href = authUrl;
+}
+
+// ── Google API initialization (gapi only, no GIS needed) ──
 function initGapiClient() {
   gapi.client.init({}).then(function() {
     gapi.client.load('sheets', 'v4').then(function() {
       gapiInited = true;
-      maybeEnableLogin();
+      onAuthReady();
     });
   });
 }
@@ -310,75 +378,39 @@ function gapiLoaded() {
   gapi.load('client', initGapiClient);
 }
 
-function gisLoaded() {
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: OAUTH_CLIENT_ID,
-    scope: SCOPES,
-    callback: onTokenResponse,
-  });
-  gisInited = true;
-  maybeEnableLogin();
+// ── Called when both auth + gapi are ready ──
+function onAuthReady() {
+  if (!gapiInited || !accessToken) return;
+  gapi.client.setToken({ access_token: accessToken });
+  syncFromSheets();
 }
 
-function maybeEnableLogin() {
-  if (gisInited && gapiInited) {
-    document.getElementById('sync-login-btn').style.display = 'inline-flex';
-    // Check if we have a cached token
-    const cached = localStorage.getItem('gyomu_gtoken');
-    if (cached) {
-      try {
-        const t = JSON.parse(cached);
-        if (t.access_token && t.expires_at && Date.now() < t.expires_at) {
-          accessToken = t.access_token;
-          gapi.client.setToken({ access_token: accessToken });
-          const ui = localStorage.getItem('gyomu_guser');
-          if (ui) googleUser = JSON.parse(ui);
-          showLoggedIn();
-          syncFromSheets();
-          return;
-        }
-      } catch(e) {}
-      localStorage.removeItem('gyomu_gtoken');
-    }
+// ── Auth flow entry point ──
+function startAuthFlow() {
+  if (authChecked) return;
+  authChecked = true;
+  // Step 1: Check if returning from Google OAuth redirect
+  if (checkRedirectResult()) return; // Will call onAuthReady after user info fetch
+  // Step 2: Check cached token
+  if (checkCachedToken()) {
+    onAuthReady();
+    return;
   }
+  // Step 3: No token — redirect to Google login
+  redirectToGoogleLogin();
 }
 
 function handleGoogleLogin() {
-  if (!tokenClient) return;
-  tokenClient.requestAccessToken({ prompt: 'consent' });
-}
-
-function onTokenResponse(resp) {
-  if (resp.error) { console.error('OAuth error:', resp.error); return; }
-  accessToken = resp.access_token;
-  gapi.client.setToken({ access_token: accessToken });
-  // Cache the token with expiry
-  const expiresAt = Date.now() + (resp.expires_in || 3600) * 1000;
-  localStorage.setItem('gyomu_gtoken', JSON.stringify({
-    access_token: accessToken,
-    expires_at: expiresAt
-  }));
-  // Fetch user info
-  fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: 'Bearer ' + accessToken }
-  }).then(r => r.json()).then(info => {
-    googleUser = { name: info.name || info.email, email: info.email, picture: info.picture };
-    localStorage.setItem('gyomu_guser', JSON.stringify(googleUser));
-    showLoggedIn();
-    syncFromSheets();
-  }).catch(() => {
-    showLoggedIn();
-    syncFromSheets();
-  });
+  redirectToGoogleLogin();
 }
 
 function handleGoogleLogout() {
-  if (accessToken) {
-    google.accounts.oauth2.revoke(accessToken, () => {});
+  if (accessToken && typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+    google.accounts.oauth2.revoke(accessToken, function() {});
   }
   accessToken = null;
   googleUser = null;
-  gapi.client.setToken(null);
+  if (gapiInited) gapi.client.setToken(null);
   localStorage.removeItem('gyomu_gtoken');
   localStorage.removeItem('gyomu_guser');
   showLoggedOut();
@@ -396,7 +428,7 @@ function showLoggedIn() {
     infoEl.innerHTML = html;
     infoEl.style.display = 'inline-flex';
   }
-  setSyncStatus('off', 'ログイン済み');
+  setSyncStatus('busy', '同期中...');
 }
 
 function showLoggedOut() {
@@ -567,15 +599,7 @@ async function syncToSheets() {
   }
 }
 
-// Wait for external scripts to load, then init
-function waitForGis() {
-  if (gisInited) return;
-  if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
-    gisLoaded();
-  } else {
-    setTimeout(waitForGis, 150);
-  }
-}
+// Wait for gapi to load, then start auth flow
 function waitForGapi() {
   if (gapiInited) return;
   if (typeof gapi !== 'undefined' && gapi.load) {
@@ -584,8 +608,11 @@ function waitForGapi() {
     setTimeout(waitForGapi, 150);
   }
 }
-// Start polling after DOM ready
-setTimeout(function() { waitForGis(); waitForGapi(); }, 200);
+// Start: check auth immediately, then wait for gapi
+setTimeout(function() {
+  startAuthFlow();
+  waitForGapi();
+}, 100);
 
 // ── データ永続化 + 元に戻す機能 ──
 const UNDO_MAX = 30;
