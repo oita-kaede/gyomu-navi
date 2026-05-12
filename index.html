@@ -288,7 +288,7 @@ const SPREADSHEET_ID = '1UgO0Y_IOD_ASwzrZLP-JcG0sfiMxs9GEI7s02J0Ifoc';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const SHEET_BLOCKS = 'ブロック一覧';
 const SHEET_LINKS = 'リンク一覧';
-const SHEET_SETTINGS = '◎設定';
+const SHEET_SETTINGS = '⚙ 設定';
 
 let gisInited = false, gapiInited = false;
 let tokenClient = null;
@@ -425,7 +425,7 @@ async function syncFromSheets() {
       ranges: [
         SHEET_BLOCKS + '!A2:F',
         SHEET_LINKS + '!A2:F',
-        SHEET_SETTINGS + '!B7:C19'
+        "'" + SHEET_SETTINGS + "'!B7:C19"
       ]
     });
     const ranges = resp.result.valueRanges || [];
