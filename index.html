@@ -284,7 +284,7 @@ let isEdit = false, editIndex = null, activeCat = '検査', activeSg = null, edi
 // ═══════════════════════════════════════════════════════
 const OAUTH_CLIENT_ID = '261087242588-i5u578a5fpi1chomkur6gffv1tq5f7k2.apps.googleusercontent.com';
 const SPREADSHEET_ID = '1UgO0Y_IOD_ASwzrZLP-JcG0sfiMxs9GEI7s02J0Ifoc';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly';
 const REDIRECT_URI = window.location.origin + '/gyomu-navi/';
 const SHEET_BLOCKS = 'ブロック一覧';
 const SHEET_LINKS = 'リンク一覧';
@@ -367,10 +367,13 @@ function redirectToGoogleLogin() {
 // ── Google API initialization (gapi only, no GIS needed) ──
 function initGapiClient() {
   gapi.client.init({}).then(function() {
-    gapi.client.load('sheets', 'v4').then(function() {
-      gapiInited = true;
-      onAuthReady();
-    });
+    return Promise.all([
+      gapi.client.load('sheets', 'v4'),
+      gapi.client.load('drive', 'v3')
+    ]);
+  }).then(function() {
+    gapiInited = true;
+    onAuthReady();
   });
 }
 
@@ -762,13 +765,9 @@ let data = [
 // ║  ★★★ 設定エリア ★★★                                    ║
 // ╠══════════════════════════════════════════════════════════╣
 // ║                                                          ║
-// ║  【1】Google Drive API キー                              ║
-// ║  → Google Cloud Console で取得した API キーを貼り付け    ║
-// ║  → 取得手順: console.cloud.google.com → APIとサービス   ║
-// ║    → 認証情報 → APIキーを作成                           ║
-// ║  → Drive API を有効にしてください                        ║
-// ║                                                          ║
-let GOOGLE_DRIVE_API_KEY = '';  // ← ここにAPIキーを貼り付け（◎設定シートから自動取得可）
+// ║  【1】Google Drive 検索                                  ║
+// ║  → OAuthログインで自動的にDrive APIが使えます            ║
+// ║  → APIキーは不要です                                     ║
 // ║                                                          ║
 // ║  【2】NotebookLM 共有URL                                 ║
 // ║  → NotebookLM でノートブックを開く → 共有 → リンク取得  ║
@@ -960,57 +959,70 @@ function onSearch() {
       }).join('');
 
   // ── ジャンル2: Googleドライブ検索 ──
-  const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(q);
-  let driveHtml = '';
-  if (GOOGLE_DRIVE_API_KEY) {
-    // APIキーが設定されている場合 → Drive APIでファイル一覧を取得
-    driveHtml = '<div class="sr-empty">ドライブを検索中...</div>';
-    document.getElementById('sr-drive-list').innerHTML = driveHtml;
+  if (accessToken && gapiInited) {
+    document.getElementById('sr-drive-list').innerHTML = '<div class="sr-empty">ドライブを検索中...</div>';
     searchGoogleDrive(q);
   } else {
-    // APIキー未設定 → ドライブ検索リンクのみ表示
-    driveHtml = `<a class="sr-drive-btn" href="${driveUrl}" target="_blank" rel="noopener">
+    const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(q);
+    document.getElementById('sr-drive-list').innerHTML = `<a class="sr-drive-btn" href="${driveUrl}" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <div>
         <div>「${q}」をGoogleドライブで検索</div>
-        <div class="sr-drive-sub">※ APIキーを設定するとここに結果が表示されます</div>
+        <div class="sr-drive-sub">※ ログインするとここに結果が表示されます</div>
       </div>
     </a>`;
-    document.getElementById('sr-drive-list').innerHTML = driveHtml;
   }
   renderRows();
 }
 
-// Google Drive API検索（APIキー設定後に動作）
+// Google Drive API検索（OAuthトークンで動作）
 async function searchGoogleDrive(query) {
-  if (!GOOGLE_DRIVE_API_KEY) return;
+  if (!accessToken || !gapiInited) return;
   try {
-    const url = `https://www.googleapis.com/drive/v3/files?q=name+contains+'${encodeURIComponent(query)}'&key=${GOOGLE_DRIVE_API_KEY}&fields=files(id,name,mimeType,webViewLink)&pageSize=10`;
-    const res = await fetch(url);
-    const json = await res.json();
-    const files = json.files || [];
+    const resp = await gapi.client.drive.files.list({
+      q: "name contains '" + query.replace(/'/g, "\\'") + "' and trashed = false",
+      fields: 'files(id,name,mimeType,webViewLink,iconLink,modifiedTime,owners)',
+      pageSize: 10,
+      orderBy: 'modifiedTime desc',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives'
+    });
+    const files = resp.result.files || [];
     const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(query);
     let html = '';
     if (files.length > 0) {
-      html += files.map(f => {
-        const icon = f.mimeType.includes('folder') ? 'folder' : f.mimeType.includes('presentation') ? 'plan' : 'doc';
-        const type = f.mimeType.includes('folder') ? 'フォルダ' : f.mimeType.includes('presentation') ? 'スライド' : f.mimeType.includes('spreadsheet') ? 'スプレッドシート' : 'PDF/ドキュメント';
-        return `<a class="sr-item" href="${f.webViewLink}" target="_blank" rel="noopener">
-          <span class="sr-dot" style="background:#185FA5"></span>
-          <span>${f.name}</span>
-          <span class="sr-cat">${type}</span>
-        </a>`;
+      html += files.map(function(f) {
+        const mime = f.mimeType || '';
+        let typeLabel = 'ファイル';
+        let dotColor = '#185FA5';
+        if (mime.includes('folder')) { typeLabel = 'フォルダ'; dotColor = '#888780'; }
+        else if (mime.includes('spreadsheet')) { typeLabel = 'スプレッドシート'; dotColor = '#1D9E75'; }
+        else if (mime.includes('presentation')) { typeLabel = 'スライド'; dotColor = '#D4A017'; }
+        else if (mime.includes('document')) { typeLabel = 'ドキュメント'; dotColor = '#378ADD'; }
+        else if (mime.includes('pdf')) { typeLabel = 'PDF'; dotColor = '#D85A30'; }
+        else if (mime.includes('image')) { typeLabel = '画像'; dotColor = '#534AB7'; }
+        const link = f.webViewLink || ('https://drive.google.com/file/d/' + f.id + '/view');
+        const modified = f.modifiedTime ? new Date(f.modifiedTime).toLocaleDateString('ja-JP') : '';
+        return '<a class="sr-item" href="' + link + '" target="_blank" rel="noopener">' +
+          '<span class="sr-dot" style="background:' + dotColor + '"></span>' +
+          '<span>' + f.name + '</span>' +
+          '<span class="sr-cat">' + typeLabel + (modified ? ' / ' + modified : '') + '</span>' +
+        '</a>';
       }).join('');
     } else {
       html += '<div class="sr-empty">ドライブに該当ファイルが見つかりませんでした</div>';
     }
-    html += `<a class="sr-drive-btn" href="${driveUrl}" target="_blank" rel="noopener" style="margin-top:6px">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <div><div>ドライブでもっと探す</div></div>
-    </a>`;
+    html += '<a class="sr-drive-btn" href="' + driveUrl + '" target="_blank" rel="noopener" style="margin-top:6px">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '<div><div>ドライブでもっと探す</div></div></a>';
     document.getElementById('sr-drive-list').innerHTML = html;
   } catch (e) {
-    document.getElementById('sr-drive-list').innerHTML = '<div class="sr-empty">ドライブ検索でエラーが発生しました</div>';
+    console.error('Drive search error:', e);
+    const driveUrl = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(query);
+    document.getElementById('sr-drive-list').innerHTML = '<a class="sr-drive-btn" href="' + driveUrl + '" target="_blank" rel="noopener">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '<div><div>ドライブで検索する</div></div></a>';
   }
 }
 function toggleEdit() {
